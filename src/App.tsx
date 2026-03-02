@@ -17,10 +17,8 @@ import {
   Loader2,
   ArrowRight
 } from 'lucide-react';
-import { generateImage, editImage } from './services/gemini';
+import { generateImage, editImage, suggestPrompt } from './services/gemini';
 import { cn } from './lib/utils';
-
-const INITIAL_PROMPT = `Book cover design for ‘9 Lydportaler’. A central Yggdrasil world tree at night, with nine glowing circular portals along its trunk, each radiating colored sound waves. Subtle rune-like symbols inside each circle. Northern lights in the sky, starry background, deep blues and aurora greens, roots fading into darkness. Minimalist human silhouette meditating at the base of the tree. Elegant rune-inspired title typography, modern subtitle, Norse knotwork border, mystical and serene atmosphere. High quality, cinematic lighting, 4k.`;
 
 interface HistoryItem {
   id: string;
@@ -29,10 +27,32 @@ interface HistoryItem {
   timestamp: number;
 }
 
+const SUGGESTIONS = [
+  {
+    title: "Yggdrasil & Portals",
+    prompt: "A central Yggdrasil world tree at night, with nine glowing circular portals along its trunk, each radiating colored sound waves. Subtle rune-like symbols inside each circle. Northern lights in the sky, starry background, deep blues and aurora greens, roots fading into darkness. Minimalist human silhouette meditating at the base of the tree. Norse knotwork border, mystical and serene atmosphere."
+  },
+  {
+    title: "Viking Voyage",
+    prompt: "A majestic Viking longship sailing through a misty fjord at dawn. The water is calm and reflective. In the sky, a faint silhouette of a giant raven made of stars. Ethereal sound waves rippling from the ship's prow. Cinematic lighting, epic scale, misty atmosphere."
+  },
+  {
+    title: "Runic Monolith",
+    prompt: "A single massive stone monolith standing in a snowy tundra. Ancient glowing runes are carved deep into the stone, pulsing with golden light. A blizzard swirls around it, but the area near the stone is calm. A sense of ancient power and solitude."
+  },
+  {
+    title: "Celestial Valkyrie",
+    prompt: "A Valkyrie silhouette against a giant blood-red moon. Her wings are made of shimmering light and sound frequencies. She holds a spear that drips stardust. Ethereal, powerful, and divine Norse aesthetic."
+  }
+];
+
 export default function App() {
   const [currentImage, setCurrentImage] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [editPrompt, setEditPrompt] = useState('');
+  const [basePrompt, setBasePrompt] = useState(SUGGESTIONS[0].prompt);
+  const [keywords, setKeywords] = useState('');
+  const [isSuggesting, setIsSuggesting] = useState(false);
   const [title, setTitle] = useState('9 Lydportaler');
   const [subtitle, setSubtitle] = useState('Norse Sound Portals');
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -41,8 +61,8 @@ export default function App() {
 
   const generateInitial = async () => {
     setIsGenerating(true);
-    setStatus('Summoning the World Tree...');
-    const prompt = `Book cover design for ‘${title}’. Subtitle: ‘${subtitle}’. A central Yggdrasil world tree at night, with nine glowing circular portals along its trunk, each radiating colored sound waves. Subtle rune-like symbols inside each circle. Northern lights in the sky, starry background, deep blues and aurora greens, roots fading into darkness. Minimalist human silhouette meditating at the base of the tree. Elegant rune-inspired title typography for ‘${title}’, modern subtitle typography for ‘${subtitle}’, Norse knotwork border, mystical and serene atmosphere. High quality, cinematic lighting, 4k.`;
+    setStatus('Summoning the Vision...');
+    const prompt = `Book cover design for ‘${title}’. Subtitle: ‘${subtitle}’. ${basePrompt} Elegant rune-inspired title typography for ‘${title}’, modern subtitle typography for ‘${subtitle}’. High quality, cinematic lighting, 4k.`;
     try {
       const url = await generateImage(prompt);
       setCurrentImage(url);
@@ -90,6 +110,20 @@ export default function App() {
     link.href = currentImage;
     link.download = `9-lydportaler-cover-${Date.now()}.png`;
     link.click();
+  };
+
+  const handleSuggestPrompt = async () => {
+    if (!keywords.trim()) return;
+    setIsSuggesting(true);
+    try {
+      const suggestion = await suggestPrompt(keywords);
+      setBasePrompt(suggestion);
+      setKeywords('');
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsSuggesting(false);
+    }
   };
 
   return (
@@ -153,6 +187,57 @@ export default function App() {
                     placeholder="Enter Subtitle"
                     className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 focus:outline-none focus:border-nordic-gold/30 transition-colors text-sm"
                   />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] uppercase tracking-widest text-white/40 font-mono">AI Prompt Assistant</label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text"
+                      value={keywords}
+                      onChange={(e) => setKeywords(e.target.value)}
+                      placeholder="Enter keywords (e.g. 'frozen lake, giant wolf')"
+                      className="flex-1 bg-white/5 border border-white/10 rounded-xl py-3 px-4 focus:outline-none focus:border-nordic-gold/30 transition-colors text-sm"
+                    />
+                    <button 
+                      onClick={handleSuggestPrompt}
+                      disabled={isSuggesting || !keywords.trim()}
+                      className="px-4 bg-nordic-gold/10 border border-nordic-gold/30 text-nordic-gold rounded-xl hover:bg-nordic-gold/20 transition-colors disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {isSuggesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                      <span className="text-xs font-bold uppercase">Suggest</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] uppercase tracking-widest text-white/40 font-mono">Cover Concept Prompt</label>
+                  <textarea 
+                    value={basePrompt}
+                    onChange={(e) => setBasePrompt(e.target.value)}
+                    placeholder="Describe your cover vision..."
+                    rows={4}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 focus:outline-none focus:border-nordic-gold/30 transition-colors text-sm resize-none"
+                  />
+                  
+                  <div className="flex flex-wrap gap-2">
+                    {SUGGESTIONS.map((s, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setBasePrompt(s.prompt)}
+                        className={cn(
+                          "text-[10px] px-3 py-1 rounded-full border transition-all",
+                          basePrompt === s.prompt 
+                            ? "bg-nordic-gold/20 border-nordic-gold text-nordic-gold" 
+                            : "bg-white/5 border-white/10 text-white/40 hover:border-white/30"
+                        )}
+                      >
+                        {s.title}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </motion.div>
